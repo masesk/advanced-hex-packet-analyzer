@@ -124,7 +124,7 @@ def parse_packet_endpoint():
         xml_output = parse_packet_to_xml(hex_packet)
         
         # Return XML response
-        print(xml_output)
+        #print(xml_output)
         return Response(
             xml_output,
             mimetype='application/xml',

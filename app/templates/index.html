@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Advanced Hex Packet Analyzer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --primary-color: #2c3e50;
+      --secondary-color: #3498db;
+      --background-color: #f5f6fa;
+      --card-bg: #ffffff;
+      --text-color: #333;
+      --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      padding: 40px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h2 {
+      color: var(--primary-color);
+      font-weight: 600;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    textarea {
+      width: 100%;
+      height: 150px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      padding: 15px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      resize: vertical;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+      transition: border-color 0.3s ease;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--secondary-color);
+    }
+
+    button {
+      background-color: var(--secondary-color);
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+      box-shadow: var(--shadow);
+      display: block;
+      margin: 0 auto 30px;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+      transform: translateY(-2px);
+    }
+
+    #output {
+      background-color: var(--card-bg);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    table {
+      border-collapse: separate;
+      border-spacing: 0px;
+      width: 100%;
+    }
+
+    th, td {
+      padding: 8px;
+      text-align: center;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+    }
+
+    th {
+      background-color: var(--primary-color);
+      color: white;
+      font-weight: 500;
+    }
+
+    td {
+      background-color: var(--card-bg);
+    }
+
+    .chunk {
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.2s ease-out, box-shadow 0.2s ease;
+    }
+
+    .chunk:hover {
+      transform: scale(2);
+      z-index: 5;
+    }
+
+    .tooltip {
+      visibility: hidden;
+      background-color: rgba(44, 62, 80, 0.95);
+      color: white;
+      padding: 6px 10px;
+      border-radius: 4px;
+      position: absolute;
+      white-space: nowrap;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    .chunk:hover .tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Advanced Hex Packet Analyzer</h2>
+    <textarea id="packet-input" placeholder="Enter hex packet..."></textarea>
+    <button onclick="sendPacket()">Parse Packet</button>
+    <div id="output"></div>
+  </div>
+
+  <script>
+    async function sendPacket() {
+      const inputElem = document.getElementById('packet-input');
+      const hexPacket = inputElem.value.replace(/\s+/g, '');
+      try {
+        const response = await fetch('/parse_packet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hex_packet: hexPacket })
+        });
+        if (!response.ok) {
+          document.getElementById('output').innerText = 'Error parsing packet';
+          return;
+        }
+        const pdmlText = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(pdmlText, "application/xml");
+        displayAnnotatedHex(hexPacket, xmlDoc);
+      } catch (error) {
+        document.getElementById('output').innerText = 'Error: ' + error;
+      }
+    }
+
+    function getHighlightSegments(element, protoName = '', depth = 0) {
+      let segments = [];
+      const tag = element.tagName.toLowerCase();
+      if (tag !== 'proto' && tag !== 'field') return segments;
+
+      const nameAttr = element.getAttribute('name');
+      if (nameAttr === 'geninfo' || nameAttr === 'frame') return segments;
+      if (element.getAttribute('hide') === 'yes' || element.getAttribute('show') === 'False') return segments;
+
+      if (tag === 'proto') {
+        protoName = nameAttr;
+      }
+
+      const posAttr = element.getAttribute('pos');
+      if (!posAttr) return segments;
+      const pos = parseInt(posAttr);
+      let size = element.getAttribute('size') ? parseInt(element.getAttribute('size')) : 1;
+      const start = pos * 2;
+      const end = start + size * 2;
+      const tooltip = element.getAttribute('showname') || nameAttr || '';
+
+      let childSegments = [];
+      Array.from(element.children).forEach(child => {
+        if (child.tagName.toLowerCase() === 'proto' || child.tagName.toLowerCase() === 'field') {
+          childSegments.push(...getHighlightSegments(child, protoName, depth + 1));
+        }
+      });
+
+      if (childSegments.length === 0) {
+        return [{ start, end, tooltip, proto: protoName, depth }];
+      } else {
+        childSegments.sort((a, b) => a.start - b.start);
+        let combined = [];
+        let current = start;
+        childSegments.forEach(childSeg => {
+          if (childSeg.start > current) {
+            combined.push({ start: current, end: childSeg.start, tooltip, proto: protoName, depth });
+          }
+          combined.push(childSeg);
+          current = childSeg.end;
+        });
+        if (current < end) {
+          combined.push({ start: current, end, tooltip, proto: protoName, depth });
+        }
+        return combined;
+      }
+    }
+
+    function getChunkStyle(index, max){
+        if(index == 1){
+            return "border-left: solid 1px #333; border-top: solid 1px #333; border-bottom: solid 1px #333;"
+        }
+        if(index === max){
+            return "border-right: solid 1px #333; border-top: solid 1px #333; border-bottom: solid 1px #333;"
+        }
+        return "border-top: solid 1px #333; border-bottom: solid 1px #333;"
+    }
+
+    function adjustTooltipPosition(chunk, tooltip) {
+      // Reset tooltip position
+      tooltip.style.left = '';
+      tooltip.style.right = '';
+      tooltip.style.top = '';
+      tooltip.style.bottom = '';
+      tooltip.style.transform = '';
+
+      const chunkRect = chunk.getBoundingClientRect();
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const margin = 10; // Space from edge
+
+      // Try positioning above first (default)
+      tooltip.style.bottom = '100%';
+      tooltip.style.left = '50%';
+      tooltip.style.transform = 'translateX(-50%)';
+      tooltip.style.top = 'auto';
+
+      // Get updated position after reset
+      const updatedTooltipRect = tooltip.getBoundingClientRect();
+
+      // Check vertical position
+      if (updatedTooltipRect.top < margin) {
+        // If it goes off top, position below instead
+        tooltip.style.bottom = 'auto';
+        tooltip.style.top = '100%';
+      }
+
+      // Check horizontal position and adjust
+      if (updatedTooltipRect.left < margin) {
+        tooltip.style.left = '0';
+        tooltip.style.transform = 'translateX(0)';
+        tooltip.style.right = 'auto';
+      } else if (updatedTooltipRect.right > viewportWidth - margin) {
+        tooltip.style.left = 'auto';
+        tooltip.style.right = '0';
+        tooltip.style.transform = 'translateX(0)';
+      }
+
+      // Final position check and adjustment
+      const finalRect = tooltip.getBoundingClientRect();
+      if (finalRect.bottom > viewportHeight - margin) {
+        tooltip.style.top = 'auto';
+        tooltip.style.bottom = '100%';
+      }
+    }
+
+    function displayAnnotatedHex(hexData, xmlDoc) {
+      let segments = [];
+      const protos = xmlDoc.querySelectorAll('packet > proto');
+      protos.forEach(proto => {
+        const protoName = proto.getAttribute('name');
+        if (protoName === 'geninfo' || protoName === 'frame') return;
+        segments.push(...getHighlightSegments(proto));
+      });
+
+      const protocolColors = {};
+      const colorPalette = ["#FFDDC1", "#D4A5A5", "#E2C2C6", "#8AC6D1", "#B5EAD7", "#FFDAC1", "#D4A5A5", "#FF9AA2"];
+      let colorIndex = 0;
+
+      const tooltipGroups = {};
+      segments.forEach(seg => {
+        if (!protocolColors[seg.proto]) {
+          protocolColors[seg.proto] = colorPalette[colorIndex % colorPalette.length];
+          colorIndex++;
+        }
+        seg.color = protocolColors[seg.proto];
+        if (!tooltipGroups[seg.tooltip]) {
+          tooltipGroups[seg.tooltip] = crypto.randomUUID();
+        }
+        seg.groupId = tooltipGroups[seg.tooltip];
+      });
+
+      let annotations = new Array(hexData.length).fill(null);
+      segments.forEach(seg => {
+        for (let i = seg.start; i < seg.end; i++) {
+          if (!annotations[i] || seg.depth > annotations[i].depth) {
+            annotations[i] = seg;
+          }
+        }
+      });
+
+      let outputHtml = '<table>';
+      outputHtml += '<tr><th>Offset</th>';
+      for (let i = 0; i < 16; i++) {
+        outputHtml += `<th>${i.toString(16).toUpperCase()}</th>`;
+      }
+      outputHtml += '</tr>'; 
+      let currentCount = 0;
+      let currentGroupId = "";
+      for (let row = 0; row < Math.ceil(hexData.length / 32); row++) {
+        outputHtml += `<tr><td>${(row * 16).toString(16).toUpperCase().padStart(4, '0')}</td>`;
+        for (let col = 0; col < 16; col++) {
+          let index = (row * 32) + (col * 2);
+          if (index >= hexData.length) break;
+          let byteHex = hexData.substring(index, index + 2);
+          let ann = annotations[index];
+
+          if (currentGroupId !== ann?.groupId){
+            currentGroupId = ann?.groupId;
+            currentCount = 0;
+          }
+          currentCount++;
+          const style = ann ? getChunkStyle(currentCount, (ann.end-ann.start)/2) : '';
+          if (ann) {
+            outputHtml += `<td class="chunk" data-group="${ann.groupId}" style="${style} background-color: ${ann.color};">${byteHex}<span class="tooltip">${ann.tooltip}</span></td>`;
+          } else {
+            outputHtml += `<td>${byteHex}</td>`;
+          }
+        }
+        outputHtml += '</tr>';
+      }
+      outputHtml += '</table>';
+
+      document.getElementById('output').innerHTML = outputHtml;
+
+      const chunks = document.querySelectorAll('.chunk');
+      chunks.forEach(chunk => {
+        const tooltip = chunk.querySelector('.tooltip');
+        chunk.addEventListener('mouseenter', () => {
+          const groupId = chunk.dataset.group;
+          document.querySelectorAll(`.chunk[data-group="${groupId}"]`).forEach(el => {
+            el.style.transform = 'scale(1.1)';
+            el.style.zIndex = '5';
+            adjustTooltipPosition(el, el.querySelector('.tooltip'));
+          });
+        });
+        chunk.addEventListener('mouseleave', () => {
+          const groupId = chunk.dataset.group;
+          document.querySelectorAll(`.chunk[data-group="${groupId}"]`).forEach(el => {
+            el.style.transform = 'scale(1)';
+            el.style.zIndex = '0';
+          });
+        });
+      });
+    }
+  </script>
+</body>
+</html>
