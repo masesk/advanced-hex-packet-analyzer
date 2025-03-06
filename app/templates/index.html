@@ -1,17 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>Advanced Hex Packet Analyzer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     :root {
+      /* Dark mode defaults */
+      --primary-color: #4a6a8a;
+      --secondary-color: #66b3ff;
+      --background-color: #1e2a38;
+      --card-bg: #2c3e50;
+      --text-color: #d9e1e8;
+      --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      --border-color: #4a6a8a;
+    }
+
+    /* Light mode overrides */
+    body.light-mode {
       --primary-color: #2c3e50;
       --secondary-color: #3498db;
       --background-color: #f5f6fa;
       --card-bg: #ffffff;
       --text-color: #333;
       --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      --border-color: #ddd;
     }
 
     body {
@@ -21,11 +35,13 @@
       padding: 40px;
       line-height: 1.6;
       margin: 0;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
     .container {
       max-width: 1200px;
       margin: 0 auto;
+      position: relative;
     }
 
     h2 {
@@ -41,12 +57,15 @@
       font-family: 'Courier New', monospace;
       font-size: 14px;
       padding: 15px;
-      border: 2px solid #ddd;
+      border: 2px solid var(--border-color);
+      box-sizing: border-box;
       border-radius: 8px;
       resize: vertical;
       margin-bottom: 20px;
       box-shadow: var(--shadow);
       transition: border-color 0.3s ease;
+      background-color: var(--card-bg);
+      color: var(--text-color);
     }
 
     textarea:focus {
@@ -78,16 +97,22 @@
       padding: 20px;
       border-radius: 8px;
       box-shadow: var(--shadow);
-      overflow: hidden;
+      position: absolute;
+      /* Changed from absolute */
+      margin-bottom: 60px;
+      width: calc(100% - 40px);
+      overflow-x: hidden;
     }
 
     table {
       border-collapse: separate;
       border-spacing: 0px;
       width: 100%;
+      overflow-x: clip;
     }
 
-    th, td {
+    th,
+    td {
       padding: 8px;
       text-align: center;
       font-family: 'Courier New', monospace;
@@ -107,6 +132,7 @@
     .chunk {
       position: relative;
       cursor: pointer;
+      color: #333;
       transition: transform 0.2s ease-out, box-shadow 0.2s ease;
     }
 
@@ -122,9 +148,9 @@
       padding: 6px 10px;
       border-radius: 4px;
       position: absolute;
-      white-space: nowrap;
       z-index: 10;
       opacity: 0;
+      width: 250px;
       transition: opacity 0.2s ease;
       font-size: 12px;
       pointer-events: none;
@@ -134,17 +160,93 @@
       visibility: visible;
       opacity: 1;
     }
+
+    #protocol-key {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 20px;
+      padding: 10px;
+    }
+
+    .protocol-item {
+      min-width: 80px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border-color);
+      font-size: 14px;
+      color: var(--text-color);
+      padding: 0 10px;
+      text-align: center;
+      word-wrap: break-word;
+      color: #333;
+    }
+
+    /* Toggle button styles */
+    #theme-toggle {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 24px;
+      color: var(--text-color);
+      padding: 5px;
+      transition: color 0.3s ease;
+    }
+
+    #theme-toggle:hover {
+      color: var(--secondary-color);
+    }
+
+    .output-content {
+      display: block;
+      background-color: var(--card-bg);
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      position: absolute;
+      margin-bottom: 60px;
+      float: left;
+      width: calc(100% - 40px);
+      overflow-x: hidden;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h2>Advanced Hex Packet Analyzer</h2>
+    <button id="theme-toggle" title="Toggle Theme">&#x1F31C;</button> <!-- Moon icon (dark mode) -->
     <textarea id="packet-input" placeholder="Enter hex packet..."></textarea>
     <button onclick="sendPacket()">Parse Packet</button>
-    <div id="output"></div>
+    <div id="output-content" class="output"></div>
+    <div id="protocol-key" class="output"></div>
+  </div>
   </div>
 
   <script>
+    // Theme toggle logic
+    const themeToggle = document.getElementById('theme-toggle');
+    const body = document.body;
+
+    // Set dark mode as default (no class needed since :root has dark mode defaults)
+    themeToggle.innerHTML = '&#x1F31C;'; // Moon icon
+
+    themeToggle.addEventListener('click', () => {
+      body.classList.toggle('light-mode');
+      if (body.classList.contains('light-mode')) {
+        themeToggle.innerHTML = '&#x1F31E;'; // Sun icon
+        themeToggle.title = 'Switch to Dark Mode';
+      } else {
+        themeToggle.innerHTML = '&#x1F31C;'; // Moon icon
+        themeToggle.title = 'Switch to Light Mode';
+      }
+    });
+
     async function sendPacket() {
       const inputElem = document.getElementById('packet-input');
       const hexPacket = inputElem.value.replace(/\s+/g, '');
@@ -155,7 +257,7 @@
           body: JSON.stringify({ hex_packet: hexPacket })
         });
         if (!response.ok) {
-          document.getElementById('output').innerText = 'Error parsing packet';
+          document.getElementById('output-content').innerText = 'Error parsing packet';
           return;
         }
         const pdmlText = await response.text();
@@ -163,11 +265,11 @@
         const xmlDoc = parser.parseFromString(pdmlText, "application/xml");
         displayAnnotatedHex(hexPacket, xmlDoc);
       } catch (error) {
-        document.getElementById('output').innerText = 'Error: ' + error;
+        document.getElementById('output-content').innerText = 'Error: ' + error;
       }
     }
 
-    function getHighlightSegments(element, protoName = '', depth = 0) {
+    function getHighlightSegments(element, protoName = '', depth = 0, protocolOrder = []) {
       let segments = [];
       const tag = element.tagName.toLowerCase();
       if (tag !== 'proto' && tag !== 'field') return segments;
@@ -178,6 +280,9 @@
 
       if (tag === 'proto') {
         protoName = nameAttr;
+        if (!protocolOrder.includes(protoName)) {
+          protocolOrder.push(protoName);
+        }
       }
 
       const posAttr = element.getAttribute('pos');
@@ -191,7 +296,7 @@
       let childSegments = [];
       Array.from(element.children).forEach(child => {
         if (child.tagName.toLowerCase() === 'proto' || child.tagName.toLowerCase() === 'field') {
-          childSegments.push(...getHighlightSegments(child, protoName, depth + 1));
+          childSegments.push(...getHighlightSegments(child, protoName, depth + 1, protocolOrder));
         }
       });
 
@@ -215,18 +320,18 @@
       }
     }
 
-    function getChunkStyle(index, max){
-        if(index == 1){
-            return "border-left: solid 1px #333; border-top: solid 1px #333; border-bottom: solid 1px #333;"
-        }
-        if(index === max){
-            return "border-right: solid 1px #333; border-top: solid 1px #333; border-bottom: solid 1px #333;"
-        }
-        return "border-top: solid 1px #333; border-bottom: solid 1px #333;"
+    function getChunkStyle(index, max) {
+      let style = "border-top: solid 1px #333; border-bottom: solid 1px #333;";
+      if (index == 1) {
+        style += "border-left: solid 1px #333;";
+      }
+      if (index === max) {
+        style += "border-right: solid 1px #333;";
+      }
+      return style;
     }
 
     function adjustTooltipPosition(chunk, tooltip) {
-      // Reset tooltip position
       tooltip.style.left = '';
       tooltip.style.right = '';
       tooltip.style.top = '';
@@ -237,25 +342,20 @@
       const tooltipRect = tooltip.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      const margin = 10; // Space from edge
+      const margin = 100;
 
-      // Try positioning above first (default)
       tooltip.style.bottom = '100%';
       tooltip.style.left = '50%';
       tooltip.style.transform = 'translateX(-50%)';
       tooltip.style.top = 'auto';
 
-      // Get updated position after reset
       const updatedTooltipRect = tooltip.getBoundingClientRect();
 
-      // Check vertical position
       if (updatedTooltipRect.top < margin) {
-        // If it goes off top, position below instead
         tooltip.style.bottom = 'auto';
         tooltip.style.top = '100%';
       }
 
-      // Check horizontal position and adjust
       if (updatedTooltipRect.left < margin) {
         tooltip.style.left = '0';
         tooltip.style.transform = 'translateX(0)';
@@ -266,7 +366,6 @@
         tooltip.style.transform = 'translateX(0)';
       }
 
-      // Final position check and adjustment
       const finalRect = tooltip.getBoundingClientRect();
       if (finalRect.bottom > viewportHeight - margin) {
         tooltip.style.top = 'auto';
@@ -274,13 +373,42 @@
       }
     }
 
+    function displayProtocolKey(protocolColors, protocolOrder) {
+      const protocolKey = document.getElementById('protocol-key');
+      protocolKey.innerHTML = '';
+      let index = 0
+      protocolOrder.forEach(proto => {
+        if (protocolColors[proto]) {
+          const item = document.createElement('div');
+          item.className = 'protocol-item';
+          item.style.backgroundColor = protocolColors[proto];
+          item.textContent = proto;
+          protocolKey.appendChild(item);
+          let topLeft = "0px";
+          let topRight = "0px";
+          let bottomLeft = "0px";
+          let bottomRight = "0px";
+          if (index === 0) { topLeft = "4px"; bottomLeft = "4px"; }
+          if (index === protocolOrder.length - 1) {
+            bottomRight = "4px"; topRight = "4px";
+          }
+          item.style.borderBottomLeftRadius = bottomLeft;
+          item.style.borderBottomRightRadius = bottomRight;
+          item.style.borderTopLeftRadius = topLeft;
+          item.style.borderTopRightRadius = topRight;
+          index++;
+        }
+      });
+    }
+
     function displayAnnotatedHex(hexData, xmlDoc) {
       let segments = [];
+      const protocolOrder = [];
       const protos = xmlDoc.querySelectorAll('packet > proto');
       protos.forEach(proto => {
         const protoName = proto.getAttribute('name');
         if (protoName === 'geninfo' || protoName === 'frame') return;
-        segments.push(...getHighlightSegments(proto));
+        segments.push(...getHighlightSegments(proto, '', 0, protocolOrder));
       });
 
       const protocolColors = {};
@@ -310,11 +438,11 @@
       });
 
       let outputHtml = '<table>';
-      outputHtml += '<tr><th>Offset</th>';
+      outputHtml += '<tr><th style="background-color: transparent !important;">Offset</th>';
       for (let i = 0; i < 16; i++) {
         outputHtml += `<th>${i.toString(16).toUpperCase()}</th>`;
       }
-      outputHtml += '</tr>'; 
+      outputHtml += '</tr>';
       let currentCount = 0;
       let currentGroupId = "";
       for (let row = 0; row < Math.ceil(hexData.length / 32); row++) {
@@ -325,12 +453,12 @@
           let byteHex = hexData.substring(index, index + 2);
           let ann = annotations[index];
 
-          if (currentGroupId !== ann?.groupId){
+          if (currentGroupId !== ann?.groupId) {
             currentGroupId = ann?.groupId;
             currentCount = 0;
           }
           currentCount++;
-          const style = ann ? getChunkStyle(currentCount, (ann.end-ann.start)/2) : '';
+          const style = ann ? getChunkStyle(currentCount, (ann.end - ann.start) / 2) : '';
           if (ann) {
             outputHtml += `<td class="chunk" data-group="${ann.groupId}" style="${style} background-color: ${ann.color};">${byteHex}<span class="tooltip">${ann.tooltip}</span></td>`;
           } else {
@@ -341,7 +469,8 @@
       }
       outputHtml += '</table>';
 
-      document.getElementById('output').innerHTML = outputHtml;
+      document.getElementById('output-content').innerHTML = outputHtml;
+      displayProtocolKey(protocolColors, protocolOrder);
 
       const chunks = document.querySelectorAll('.chunk');
       chunks.forEach(chunk => {
@@ -365,4 +494,5 @@
     }
   </script>
 </body>
+
 </html>
