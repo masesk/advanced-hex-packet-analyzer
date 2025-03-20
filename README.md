@@ -1,4 +1,11 @@
 # advanced-hex-packet-analyzer
+<p align="center">
+  <img src="./capture.jpg" width="350" title="hover text">
+</p>
+
+[![license](https://img.shields.io/github/license/masesk/advanced-hex-packet-analyzer.svg)](https://github.com/masesk/advanced-hex-packet-analyzer/blob/master/LICENSE)
+[![stars](https://img.shields.io/github/stars/masesk/advanced-hex-packet-analyzer.svg?style=social)](https://github.com/masesk/advanced-hex-packet-analyzer/stargazers)
+[![forks](https://img.shields.io/github/forks/masesk/advanced-hex-packet-analyzer?style=social)](https://github.com/masesk/advanced-hex-packet-analyzer/network/members)
 
 ## Docker (Recommended)
 
@@ -37,3 +44,10 @@ pip install -r requirements.txt
 ```
 python app/app.py
 ```
+
+
+## API
+
+* **PDML** 
+    * /parse_packet?packet=**<packet_in_hex>**
+

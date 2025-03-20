@@ -251,24 +251,27 @@
       const inputElem = document.getElementById('packet-input');
       const hexPacket = inputElem.value.replace(/\s+/g, '');
       try {
-        const response = await fetch('/parse_packet', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hex_packet: hexPacket })
-        });
-        if (!response.ok) {
-          document.getElementById('output-content').innerText = 'Error parsing packet';
-          return;
-        }
-        const pdmlText = await response.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(pdmlText, "application/xml");
-        displayAnnotatedHex(hexPacket, xmlDoc);
+          // Construct the URL with the packet as a query parameter
+          const url = `/parse_packet?packet=${encodeURIComponent(hexPacket)}`;
+          
+          const response = await fetch(url, {
+              method: 'GET',
+              headers: { 'Accept': 'application/xml' }
+          });
+          
+          if (!response.ok) {
+              document.getElementById('output-content').innerText = 'Error parsing packet';
+              return;
+          }
+          
+          const pdmlText = await response.text();
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(pdmlText, "application/xml");
+          displayAnnotatedHex(hexPacket, xmlDoc);
       } catch (error) {
-        document.getElementById('output-content').innerText = 'Error: ' + error;
+          document.getElementById('output-content').innerText = 'Error: ' + error;
       }
     }
-
     function getHighlightSegments(element, protoName = '', depth = 0, protocolOrder = []) {
       let segments = [];
       const tag = element.tagName.toLowerCase();

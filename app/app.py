@@ -77,7 +77,6 @@ def parse_packet_to_xml(hex_packet):
         
         # Get the XML output
         xml_string = result.stdout
-        
         # Pretty print the XML
         try:
             root = ET.fromstring(xml_string)
@@ -104,27 +103,25 @@ def parse_packet_to_xml(hex_packet):
             except:
                 pass
 
-@app.route('/parse_packet', methods=['POST'])
+@app.route('/parse_packet', methods=['GET'])
 def parse_packet_endpoint():
     """
     HTTP endpoint to parse a hex packet and return XML output
-    Expects JSON with 'hex_packet' field in the request body
+    Expects 'packet' parameter in the query string
+    Example: /parse_packet?packet=1a2b3c4d
     """
     try:
-        # Get JSON data from request
-        data = request.get_json()
-        if not data or 'hex_packet' not in data:
+        # Get packet parameter from query string
+        hex_packet = request.args.get('packet')
+        if not hex_packet:
             return jsonify({
-                'error': 'Invalid request: "hex_packet" field is required in JSON body'
+                'error': 'Invalid request: "packet" parameter is required in query string'
             }), 400
-        
-        hex_packet = data['hex_packet']
         
         # Parse the packet and get XML output
         xml_output = parse_packet_to_xml(hex_packet)
         
         # Return XML response
-        #print(xml_output)
         return Response(
             xml_output,
             mimetype='application/xml',
