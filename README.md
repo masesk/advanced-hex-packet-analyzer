@@ -19,7 +19,7 @@ docker build -t masesk/ahpa .
 
 ### Run
 ```
-docker run -d --name ahpa masesk/ahpa -p 5000:5000 ahpa
+docker run -d --name ahpa -p 5000:5000 masesk/ahpa
 ```
 
 ## Local
